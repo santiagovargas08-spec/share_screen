@@ -2,36 +2,77 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Mi Sala de Cine - Receptor</title>
+    <title>Sala de Cine</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        body { background-color: black; color: white; margin: 0; font-family: Arial; overflow: hidden; }
+        #panel-conexion { padding: 20px; text-align: center; }
+        button { padding: 12px; background: #e50914; color: white; border: none; border-radius: 5px; font-size: 16px; margin-top: 15px;}
+        
+        /* El video principal (La serie) */
+        #video-pantalla { width: 100vw; height: 100vh; object-fit: contain; display: none; }
+        
+        /* El contenedor flotante para las camaritas */
+        .contenedor-camaras {
+            position: fixed; bottom: 20px; right: 20px; display: flex; gap: 8px; z-index: 1000;
+            display: none; /* Se oculta hasta que empiece la llamada */
+        }
+        video.cam { width: 100px; height: 75px; border-radius: 8px; object-fit: cover; background: #111; border: 2px solid white;}
+    </style>
 </head>
-<body style="background-color: black; color: white; margin: 0; text-align: center; font-family: Arial;">
+<body>
 
-    <div id="panel-conexion" style="padding: 20px;">
-        <h3>Esperando conexión...</h3>
-        <p>Dile a tu pareja que tu ID es: <strong id="mi-id">Cargando...</strong></p>
+    <div id="panel-conexion">
+        <h2>Bienvenida al Cine</h2>
+        <p>Tu ID para tu pareja: <strong id="mi-id" style="color:#e50914; font-size: 20px;">Cargando...</strong></p>
+        <button id="btn-iniciar">1. Toca aquí para encender tu cámara y esperar la película</button>
     </div>
 
-    <video id="video-recibido" autoplay controls playsinline style="width: 100vw; height: 100vh; object-fit: contain; display: none;"></video>
+    <video id="video-pantalla" autoplay playsinline></video>
+
+    <div class="contenedor-camaras" id="caja-camaras">
+        <video id="mi-camara" class="cam" autoplay muted playsinline></video>
+        <video id="camara-pareja" class="cam" autoplay playsinline></video>
+    </div>
 
     <script>
         const peer = new Peer(); 
+        let miCamara;
 
-        peer.on('open', (id) => {
-            document.getElementById('mi-id').innerText = id;
-        });
+        peer.on('open', id => document.getElementById('mi-id').innerText = id);
 
-        // Contestar automáticamente cuando tú le envíes la pantalla
-        peer.on('call', (call) => {
-            call.answer(); // Responde la llamada (solo recibe, no envía su cámara)
+        // Pedir permisos de cámara en el celular de ella
+        document.getElementById('btn-iniciar').onclick = async () => {
+            try {
+                miCamara = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('mi-camara').srcObject = miCamara;
+                document.getElementById('btn-iniciar').innerText = "Cámara encendida. Esperando a tu pareja...";
+                document.getElementById('btn-iniciar').style.background = "#28a745";
+            } catch(e) {
+                alert("Debes permitir el acceso a la cámara y micrófono.");
+            }
+        };
+
+        // Escuchar las dos llamadas que enviaste desde la PC
+        peer.on('call', llamada => {
             
-            call.on('stream', (remoteStream) => {
-                // Oculta el texto y muestra el video a pantalla completa
-                document.getElementById('panel-conexion').style.display = 'none';
-                const video = document.getElementById('video-recibido');
-                video.style.display = 'block';
-                video.srcObject = remoteStream;
-            });
+            // Si es la llamada de la SERIE
+            if (llamada.metadata.tipo === 'serie') {
+                llamada.answer(); // Solo recibe, no envía nada de vuelta
+                llamada.on('stream', streamRemoto => {
+                    document.getElementById('panel-conexion').style.display = 'none';
+                    document.getElementById('video-pantalla').style.display = 'block';
+                    document.getElementById('caja-camaras').style.display = 'flex';
+                    document.getElementById('video-pantalla').srcObject = streamRemoto;
+                });
+            } 
+            // Si es la llamada de las WEBCAMS
+            else if (llamada.metadata.tipo === 'webcams') {
+                llamada.answer(miCamara); // Responde enviando su cámara de vuelta hacia ti
+                llamada.on('stream', streamRemoto => {
+                    document.getElementById('camara-pareja').srcObject = streamRemoto;
+                });
+            }
         });
     </script>
 </body>
