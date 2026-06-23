@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cine Móvil - AutoConnect</title>
+    <title>Cine Móvil - Dual Channel</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { background-color: black; color: white; margin: 0; font-family: Arial; overflow: hidden; position: relative;}
@@ -24,12 +24,11 @@
 
     <div id="capa-inicio">
         <h2>Cine Móvil</h2>
-        <p style="color: #888; margin-bottom: 30px;">Conexión automática configurada</p>
         
         <button id="btn-iniciar">1. ENCENDER SISTEMA</button>
         <p id="texto-estado" style="color: #888; margin-top: 15px;">Paso 1 de 2</p>
 
-        <button id="btn-reproducir">2. 🎬 REPRODUCIR PELÍCULA</button>
+        <button id="btn-reproducir">2. 🎬 REPRODUCIR CINE</button>
     </div>
 
     <video id="video-pantalla" playsinline></video>
@@ -40,14 +39,15 @@
     </div>
 
     <script>
-        const MI_ID_CLIENTE = 'cine-pareja-cliente'; // ID Fijo para el celular
+        const MI_ID_CLIENTE = 'cine-pareja-cliente'; 
 
-        const peer = new Peer(MI_ID_CLIENTE, { 
-            config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } 
-        }); 
+        const peer = new Peer(MI_ID_CLIENTE, { config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } }); 
         
         let miStreamCelular;
-        let paqueteRecibido = null;
+        
+        // Variables para guardar lo que nos mandas antes de darle play
+        let streamSerieRecibido = null;
+        let streamCamaraSantiago = null;
         
         const vPantalla = document.getElementById('video-pantalla');
         const vMiCamara = document.getElementById('mi-camara');
@@ -56,19 +56,12 @@
         const btnReproducir = document.getElementById('btn-reproducir');
         const textoEstado = document.getElementById('texto-estado');
 
-        // --- SISTEMA DE AUTORECONEXIÓN ---
-        peer.on('disconnected', () => {
-            console.log("Desconectado del servidor de señalización. Reconectando...");
-            peer.reconnect();
-        });
+        peer.on('disconnected', () => peer.reconnect());
 
-        // --- ANTI-CORTES: Si ella sale a responder un WhatsApp y vuelve ---
         document.addEventListener("visibilitychange", () => {
             if (document.visibilityState === 'visible') {
-                // Al volver a la app, forzamos a los reproductores a despertar
-                console.log("Pestaña visible nuevamente. Forzando Play...");
-                vPantalla.play().catch(e => console.log(e));
-                vCamaraPareja.play().catch(e => console.log(e));
+                vPantalla.play().catch(e=>{});
+                vCamaraPareja.play().catch(e=>{});
             }
         });
 
@@ -80,41 +73,53 @@
                 vMiCamara.srcObject = miStreamCelular;
 
                 btnIniciar.style.display = 'none';
-                textoEstado.innerText = "Esperando a que Santiago envíe la señal...";
+                textoEstado.innerText = "Esperando la señal de Santiago...";
                 textoEstado.style.color = "#28a745";
-            } catch(e) {
-                alert("Debes permitir la cámara y micrófono.");
-            }
+            } catch(e) { alert("Permite cámara y micrófono."); }
         };
 
+        // Recibimos las llamadas separadas
         peer.on('call', llamada => {
-            llamada.answer(miStreamCelular); 
-            
-            llamada.on('stream', paqueteRemoto => {
-                paqueteRecibido = paqueteRemoto;
+            const canal = llamada.metadata ? llamada.metadata.canal : '';
+
+            if (canal === 'serie') {
+                // A la llamada de la serie, le respondemos enviando la cámara de ella hacia tu PC
+                llamada.answer(miStreamCelular); 
+                llamada.on('stream', stream => {
+                    streamSerieRecibido = stream;
+                    activarBotonAzul();
+                });
+            } 
+            else if (canal === 'camara-santiago') {
+                // A la llamada de tu cámara, solo respondemos para recibirla
+                llamada.answer(); 
+                llamada.on('stream', stream => {
+                    streamCamaraSantiago = stream;
+                    activarBotonAzul();
+                });
+            }
+        });
+
+        // Función para mostrar el botón azul sin importar qué llamada llega primero
+        function activarBotonAzul() {
+            if (btnReproducir.style.display === 'none' || btnReproducir.style.display === '') {
                 textoEstado.style.display = 'none';
                 btnReproducir.style.display = 'block';
                 if (navigator.vibrate) navigator.vibrate(200);
-            });
-        });
+            }
+        }
 
+        // El usuario autoriza que ambas cosas se reproduzcan
         btnReproducir.onclick = () => {
             document.getElementById('capa-inicio').style.display = 'none';
 
-            const videos = paqueteRecibido.getVideoTracks();
-            const audios = paqueteRecibido.getAudioTracks();
-
-            if (videos[0]) {
-                const streamSerie = new MediaStream([videos[0]]);
-                audios.forEach(track => streamSerie.addTrack(track));
-                vPantalla.srcObject = streamSerie;
-                vPantalla.play().catch(e => alert("Error al reproducir pantalla: " + e));
+            if (streamSerieRecibido) {
+                vPantalla.srcObject = streamSerieRecibido;
+                vPantalla.play().catch(e => console.error("Error Pantalla", e));
             }
-
-            if (videos[1]) {
-                const streamNovio = new MediaStream([videos[1]]);
-                vCamaraPareja.srcObject = streamNovio;
-                vCamaraPareja.play().catch(e => console.log(e));
+            if (streamCamaraSantiago) {
+                vCamaraPareja.srcObject = streamCamaraSantiago;
+                vCamaraPareja.play().catch(e => console.error("Error Cámara", e));
             }
         };
     </script>
