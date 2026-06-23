@@ -2,15 +2,12 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Transmisor con Webcams</title>
+    <title>Transmisor VIP - Optimizado para Móvil</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { background-color: #1a1a1a; color: white; font-family: Arial; padding: 20px; }
-        button { padding: 10px; margin: 5px; color: white; border: none; cursor: pointer; border-radius: 5px; }
-        /* El contenedor flotante para las camaritas */
-        .contenedor-camaras {
-            position: fixed; bottom: 20px; right: 20px; display: flex; gap: 10px; z-index: 1000;
-        }
+        button { padding: 10px; margin: 5px; color: white; border: none; cursor: pointer; border-radius: 5px; font-weight: bold;}
+        .contenedor-camaras { position: fixed; bottom: 20px; right: 20px; display: flex; gap: 10px; z-index: 1000; }
         video.cam { width: 150px; height: 110px; border-radius: 8px; object-fit: cover; background: #000; }
         #mi-camara { border: 2px solid #888; }
         #camara-pareja { border: 2px solid #e50914; }
@@ -18,51 +15,55 @@
 </head>
 <body>
     <h2>Panel de Transmisión VIP</h2>
-    <p>Tu ID: <strong id="mi-id">Cargando...</strong></p>
+    <p>Tu ID: <strong id="mi-id" style="color: #28a745;">Cargando...</strong></p>
     
-    <button id="btn-camara" style="background: #007bff;">1. Encender mi Cámara y Micrófono</button>
-    <button id="btn-pantalla" style="background: #e50914;">2. Capturar Pantalla (Serie)</button>
+    <button id="btn-camara" style="background: #007bff;">1. Encender mi Cámara</button>
+    <button id="btn-pantalla" style="background: #e50914;">2. Capturar Pantalla (Serie - TVN)</button>
     <br><br>
-    <input type="text" id="id-pareja" placeholder="ID de tu pareja" style="padding: 10px; width: 200px;">
-    <button id="btn-conectar" style="background: #28a745;">3. Iniciar Cine y Videollamada</button>
+    <input type="text" id="id-pareja" placeholder="ID del Celular de tu pareja" style="padding: 10px; width: 250px;">
+    <button id="btn-conectar" style="background: #28a745;">3. INICIAR CINE Y VIDEOLLAMADA</button>
 
     <div class="contenedor-camaras">
-        <video id="mi-camara" class="cam" autoplay muted></video> <video id="camara-pareja" class="cam" autoplay></video>
+        <video id="mi-camara" class="cam" autoplay muted playsinline></video>
+        <video id="camara-pareja" class="cam" autoplay playsinline></video>
     </div>
 
     <script>
         const peer = new Peer(); 
-        let streamPantalla;
-        let streamCamara;
+        let streamPantalla, streamCamara;
 
         peer.on('open', id => document.getElementById('mi-id').innerText = id);
 
-        // 1. Encender tu cámara y micrófono
+        // 1. getUserMedia (Cámara)
         document.getElementById('btn-camara').onclick = async () => {
             streamCamara = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             document.getElementById('mi-camara').srcObject = streamCamara;
         };
 
-        // 2. Capturar la serie
+        // 2. getDisplayMedia OPTIMIZADO (Constraints para el decodificador móvil)
         document.getElementById('btn-pantalla').onclick = async () => {
-            streamPantalla = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+            try {
+                streamPantalla = await navigator.mediaDevices.getDisplayMedia({ 
+                    video: {
+                        // Forzamos a no superar 1080p ligero o 720p
+                        width: { ideal: 1920, max: 1920 },
+                        height: { ideal: 1080, max: 1080 },
+                        // Limitamos a 30fps para no estresar el CPU/Batería del celular
+                        frameRate: { ideal: 30, max: 30 } 
+                    }, 
+                    audio: true 
+                });
+            } catch(e) { console.error("Error capturando pantalla:", e); }
         };
 
-        // 3. Conectar todo con tu pareja
+        // 3. Conectar
         document.getElementById('btn-conectar').onclick = () => {
             const idPareja = document.getElementById('id-pareja').value;
             if(!streamPantalla || !streamCamara) return alert("¡Enciende la cámara y captura la pantalla primero!");
-
-            // Llamada A: Enviar solo la pantalla (Identificada con metadata)
             peer.call(idPareja, streamPantalla, { metadata: { tipo: 'serie' } });
-
-            // Llamada B: Enviar tu cámara y recibir la de ella en respuesta
             const llamadaCamara = peer.call(idPareja, streamCamara, { metadata: { tipo: 'webcams' } });
-            llamadaCamara.on('stream', streamRemoto => {
-                document.getElementById('camara-pareja').srcObject = streamRemoto;
-            });
-            
-            alert("¡Conexión enviada!");
+            llamadaCamara.on('stream', streamRemoto => document.getElementById('camara-pareja').srcObject = streamRemoto);
+            alert("¡Llamada enviada! Dile a tu pareja que toque el botón 'PLAY' en el celular.");
         };
     </script>
 </body>
