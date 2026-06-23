@@ -2,22 +2,24 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Sala de Cine</title>
+    <title>Sala de Cine - Modo Móvil</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
-        body { background-color: black; color: white; margin: 0; font-family: Arial; overflow: hidden; }
-        #panel-conexion { padding: 20px; text-align: center; }
-        button { padding: 12px; background: #e50914; color: white; border: none; border-radius: 5px; font-size: 16px; margin-top: 15px;}
+        body { background-color: black; color: white; margin: 0; font-family: Arial; overflow: hidden; text-align: center;}
+        #panel-conexion { padding: 20px; }
         
-        /* El video principal (La serie) */
-        #video-pantalla { width: 100vw; height: 100vh; object-fit: contain; display: none; }
+        /* Botón de inicio VIP para móviles */
+        #btn-iniciar { padding: 15px; background: #e50914; color: white; border: none; border-radius: 8px; font-size: 18px; margin-top: 15px; font-weight: bold; width: 90%; }
         
-        /* El contenedor flotante para las camaritas */
+        /* Serie (Principal) */
+        #video-pantalla { width: 100vw; height: 100vh; object-fit: contain; display: none; background: #000; }
+        
+        /* Camaritas flotantes */
         .contenedor-camaras {
-            position: fixed; bottom: 20px; right: 20px; display: flex; gap: 8px; z-index: 1000;
-            display: none; /* Se oculta hasta que empiece la llamada */
+            position: fixed; bottom: 20px; right: 20px; display: flex; gap: 8px; z-index: 1000; display: none;
         }
-        video.cam { width: 100px; height: 75px; border-radius: 8px; object-fit: cover; background: #111; border: 2px solid white;}
+        /*playsinline es vital aquí */
+        video.cam { width: 90px; height: 68px; border-radius: 8px; object-fit: cover; background: #111; border: 2px solid white;}
     </style>
 </head>
 <body>
@@ -25,10 +27,12 @@
     <div id="panel-conexion">
         <h2>Bienvenida al Cine</h2>
         <p>Tu ID para tu pareja: <strong id="mi-id" style="color:#e50914; font-size: 20px;">Cargando...</strong></p>
-        <button id="btn-iniciar">1. Toca aquí para encender tu cámara y esperar la película</button>
+        <br>
+        <button id="btn-iniciar">TOCA AQUÍ PARA ACTIVAR CINE Y CAMARA</button>
+        <p style="font-size: 12px; color: #aaa; margin-top: 10px;">(Necesario para que el celular permita reproducir el video)</p>
     </div>
 
-    <video id="video-pantalla" autoplay playsinline></video>
+    <video id="video-pantalla" autoplay muted playsinline></video>
 
     <div class="contenedor-camaras" id="caja-camaras">
         <video id="mi-camara" class="cam" autoplay muted playsinline></video>
@@ -36,41 +40,72 @@
     </div>
 
     <script>
-        const peer = new Peer(); 
-        let miCamara;
+        // Configuración de PeerJS con servidor STUN público de Google (Ayuda con datos móviles)
+        const peerConfig = {
+            config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] }
+        };
+        const peer = new Peer(peerConfig); 
+        let miCamaraStream;
+        let vPantalla, vMiCamara, vCamaraPareja;
+
+        // Referencias a los elementos DOM
+        vPantalla = document.getElementById('video-pantalla');
+        vMiCamara = document.getElementById('mi-camara');
+        vCamaraPareja = document.getElementById('camara-pareja');
 
         peer.on('open', id => document.getElementById('mi-id').innerText = id);
 
-        // Pedir permisos de cámara en el celular de ella
+        // --- PROTOCOLO DE INTERACCIÓN MAESTRA EN MÓVIL ---
         document.getElementById('btn-iniciar').onclick = async () => {
             try {
-                miCamara = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                document.getElementById('mi-camara').srcObject = miCamara;
-                document.getElementById('btn-iniciar').innerText = "Cámara encendida. Esperando a tu pareja...";
+                // 1. Encender cámara local
+                miCamaraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                vMiCamara.srcObject = miCamaraStream;
+
+                // 2. DESBLOQUEAR REPRODUCTORES (Truco Senior)
+                // Ejecutamos .play() en reproductores vacíos para decirle al navegador móvil
+                // que el usuario sí quiere ver video aquí. Esto quita el bloqueo de autoplay.
+                // Ponemos la serie en muted al principio para forzar el autoplay, ella la desmuteará después si quiere.
+                vPantalla.play().catch(e => console.log("Primando serie:", e));
+                vCamaraPareja.play().catch(e => console.log("Primando camara pareja:", e));
+
+                document.getElementById('btn-iniciar').innerText = "Todo listo. Esperando la película...";
                 document.getElementById('btn-iniciar').style.background = "#28a745";
             } catch(e) {
-                alert("Debes permitir el acceso a la cámara y micrófono.");
+                console.error(e);
+                alert("Debes permitir acceso a cámara y micrófono.");
             }
         };
 
-        // Escuchar las dos llamadas que enviaste desde la PC
+        // --- GESTIÓN DE LLAMADAS ENTRANTES ---
         peer.on('call', llamada => {
             
-            // Si es la llamada de la SERIE
-            if (llamada.metadata.tipo === 'serie') {
-                llamada.answer(); // Solo recibe, no envía nada de vuelta
+            // Verificamos qué tipo de stream nos envía la PC
+            const tipo = llamada.metadata ? llamada.metadata.tipo : null;
+
+            // A: Viene la Serie (Pantalla de TVN)
+            if (tipo === 'serie') {
+                llamada.answer(); 
                 llamada.on('stream', streamRemoto => {
+                    // Ocultamos panel de bienvenida y mostramos cine
                     document.getElementById('panel-conexion').style.display = 'none';
-                    document.getElementById('video-pantalla').style.display = 'block';
+                    vPantalla.style.display = 'block';
                     document.getElementById('caja-camaras').style.display = 'flex';
-                    document.getElementById('video-pantalla').srcObject = streamRemoto;
+                    
+                    vPantalla.srcObject = streamRemoto;
+                    // Ya desbloqueamos .play() arriba, así que debería iniciar solo.
+                    // Si llega con sonido, móvil lo bloqueará. Lo forzamos a muted.
+                    vPantalla.muted = true; 
+                    vPantalla.play();
                 });
             } 
-            // Si es la llamada de las WEBCAMS
-            else if (llamada.metadata.tipo === 'webcams') {
-                llamada.answer(miCamara); // Responde enviando su cámara de vuelta hacia ti
+            // B: Viene la Videollamada (Cámara de la PC)
+            else if (tipo === 'webcams') {
+                // Respondemos enviando la cámara del celular hacia la PC
+                llamada.answer(miCamaraStream); 
                 llamada.on('stream', streamRemoto => {
-                    document.getElementById('camara-pareja').srcObject = streamRemoto;
+                    vCamaraPareja.srcObject = streamRemoto;
+                    vCamaraPareja.play();
                 });
             }
         });
