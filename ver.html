@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cine Móvil - Sistema Robusto</title>
+    <title>Cine Móvil - AutoConnect</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { background-color: black; color: white; margin: 0; font-family: Arial; overflow: hidden; position: relative;}
-        
         #capa-inicio { position: fixed; top:0; left:0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.95); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; text-align: center;}
         
         button { padding: 18px; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; width: 100%; max-width: 350px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); cursor: pointer;}
@@ -25,12 +24,12 @@
 
     <div id="capa-inicio">
         <h2>Cine Móvil</h2>
-        <p>Tu ID: <strong id="mi-id" style="color:#e50914; font-size: 24px; display: block; margin: 10px 0;">Cargando...</strong></p>
+        <p style="color: #888; margin-bottom: 30px;">Conexión automática configurada</p>
         
         <button id="btn-iniciar">1. ENCENDER SISTEMA</button>
         <p id="texto-estado" style="color: #888; margin-top: 15px;">Paso 1 de 2</p>
 
-        <button id="btn-reproducir">2. 🎬 SEÑAL LISTA: REPRODUCIR</button>
+        <button id="btn-reproducir">2. 🎬 REPRODUCIR PELÍCULA</button>
     </div>
 
     <video id="video-pantalla" playsinline></video>
@@ -41,10 +40,14 @@
     </div>
 
     <script>
-        const peer = new Peer({ config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } }); 
+        const MI_ID_CLIENTE = 'cine-pareja-cliente'; // ID Fijo para el celular
+
+        const peer = new Peer(MI_ID_CLIENTE, { 
+            config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } 
+        }); 
         
         let miStreamCelular;
-        let paqueteRecibido = null; // Guardará el video de tu PC en memoria hasta que ella presione reproducir
+        let paqueteRecibido = null;
         
         const vPantalla = document.getElementById('video-pantalla');
         const vMiCamara = document.getElementById('mi-camara');
@@ -53,9 +56,22 @@
         const btnReproducir = document.getElementById('btn-reproducir');
         const textoEstado = document.getElementById('texto-estado');
 
-        peer.on('open', id => document.getElementById('mi-id').innerText = id);
+        // --- SISTEMA DE AUTORECONEXIÓN ---
+        peer.on('disconnected', () => {
+            console.log("Desconectado del servidor de señalización. Reconectando...");
+            peer.reconnect();
+        });
 
-        // --- PASO 1: Enciende cámara local y estabiliza ---
+        // --- ANTI-CORTES: Si ella sale a responder un WhatsApp y vuelve ---
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === 'visible') {
+                // Al volver a la app, forzamos a los reproductores a despertar
+                console.log("Pestaña visible nuevamente. Forzando Play...");
+                vPantalla.play().catch(e => console.log(e));
+                vCamaraPareja.play().catch(e => console.log(e));
+            }
+        });
+
         btnIniciar.onclick = async () => {
             try {
                 if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(()=>{});
@@ -64,48 +80,37 @@
                 vMiCamara.srcObject = miStreamCelular;
 
                 btnIniciar.style.display = 'none';
-                textoEstado.innerText = "Sistema listo. Esperando a que tu pareja envíe la película...";
+                textoEstado.innerText = "Esperando a que Santiago envíe la señal...";
                 textoEstado.style.color = "#28a745";
             } catch(e) {
                 alert("Debes permitir la cámara y micrófono.");
             }
         };
 
-        // --- PASO 2: Llega la llamada, pero NO la reproducimos aún ---
         peer.on('call', llamada => {
             llamada.answer(miStreamCelular); 
             
             llamada.on('stream', paqueteRemoto => {
-                // Guardamos los datos en la variable
                 paqueteRecibido = paqueteRemoto;
-
-                // Actualizamos la interfaz para mostrar el botón de Reproducir
                 textoEstado.style.display = 'none';
                 btnReproducir.style.display = 'block';
-
-                // Si el celular lo permite, hacemos una pequeña vibración para avisarle
                 if (navigator.vibrate) navigator.vibrate(200);
             });
         });
 
-        // --- PASO 3: Tu idea maestra. Ejecutar el video de forma explícita ---
         btnReproducir.onclick = () => {
             document.getElementById('capa-inicio').style.display = 'none';
 
             const videos = paqueteRecibido.getVideoTracks();
             const audios = paqueteRecibido.getAudioTracks();
 
-            // Extraemos e inyectamos la Serie
             if (videos[0]) {
                 const streamSerie = new MediaStream([videos[0]]);
                 audios.forEach(track => streamSerie.addTrack(track));
                 vPantalla.srcObject = streamSerie;
-                
-                // .play() forzado por el usuario (nunca falla)
                 vPantalla.play().catch(e => alert("Error al reproducir pantalla: " + e));
             }
 
-            // Extraemos e inyectamos la cámara del PC
             if (videos[1]) {
                 const streamNovio = new MediaStream([videos[1]]);
                 vCamaraPareja.srcObject = streamNovio;
