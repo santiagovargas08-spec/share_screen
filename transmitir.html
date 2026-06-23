@@ -2,56 +2,67 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Mi Sala de Cine - Transmisor</title>
+    <title>Transmisor con Webcams</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        body { background-color: #1a1a1a; color: white; font-family: Arial; padding: 20px; }
+        button { padding: 10px; margin: 5px; color: white; border: none; cursor: pointer; border-radius: 5px; }
+        /* El contenedor flotante para las camaritas */
+        .contenedor-camaras {
+            position: fixed; bottom: 20px; right: 20px; display: flex; gap: 10px; z-index: 1000;
+        }
+        video.cam { width: 150px; height: 110px; border-radius: 8px; object-fit: cover; background: #000; }
+        #mi-camara { border: 2px solid #888; }
+        #camara-pareja { border: 2px solid #e50914; }
+    </style>
 </head>
-<body style="background-color: #1a1a1a; color: white; font-family: Arial;">
-
-    <h2>Panel de Transmisión</h2>
-    <p>Tu ID de conexión es: <strong id="mi-id">Cargando...</strong></p>
-    <p>Pásale este ID a tu pareja.</p>
+<body>
+    <h2>Panel de Transmisión VIP</h2>
+    <p>Tu ID: <strong id="mi-id">Cargando...</strong></p>
     
-    <button id="iniciar-stream" style="padding: 10px; background: #e50914; color: white; border: none; cursor: pointer;">
-        1. Capturar Pantalla de TVN
-    </button>
+    <button id="btn-camara" style="background: #007bff;">1. Encender mi Cámara y Micrófono</button>
+    <button id="btn-pantalla" style="background: #e50914;">2. Capturar Pantalla (Serie)</button>
     <br><br>
-    
-    <input type="text" id="id-pareja" placeholder="Pega el ID de ella aquí">
-    <button id="conectar" style="padding: 10px; background: #28a745; color: white; border: none; cursor: pointer;">
-        2. Enviar Video
-    </button>
+    <input type="text" id="id-pareja" placeholder="ID de tu pareja" style="padding: 10px; width: 200px;">
+    <button id="btn-conectar" style="background: #28a745;">3. Iniciar Cine y Videollamada</button>
 
-    <video id="mi-video" autoplay muted style="width: 50%; margin-top: 20px; border: 2px solid #333;"></video>
+    <div class="contenedor-camaras">
+        <video id="mi-camara" class="cam" autoplay muted></video> <video id="camara-pareja" class="cam" autoplay></video>
+    </div>
 
     <script>
         const peer = new Peer(); 
-        let miStream;
+        let streamPantalla;
+        let streamCamara;
 
-        // Mostrar mi ID cuando me conecto a la red de PeerJS
-        peer.on('open', (id) => {
-            document.getElementById('mi-id').innerText = id;
-        });
+        peer.on('open', id => document.getElementById('mi-id').innerText = id);
 
-        // Capturar la pantalla (Ventana de TVN)
-        document.getElementById('iniciar-stream').onclick = async () => {
-            try {
-                // Pide permiso para capturar pantalla CON AUDIO
-                miStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-                document.getElementById('mi-video').srcObject = miStream;
-            } catch (err) {
-                console.error("Error al capturar pantalla:", err);
-            }
+        // 1. Encender tu cámara y micrófono
+        document.getElementById('btn-camara').onclick = async () => {
+            streamCamara = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            document.getElementById('mi-camara').srcObject = streamCamara;
         };
 
-        // Llamar a la pareja y enviarle el video
-        document.getElementById('conectar').onclick = () => {
+        // 2. Capturar la serie
+        document.getElementById('btn-pantalla').onclick = async () => {
+            streamPantalla = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        };
+
+        // 3. Conectar todo con tu pareja
+        document.getElementById('btn-conectar').onclick = () => {
             const idPareja = document.getElementById('id-pareja').value;
-            if(miStream) {
-                peer.call(idPareja, miStream);
-                alert("Conectando con tu pareja...");
-            } else {
-                alert("Primero debes capturar la pantalla.");
-            }
+            if(!streamPantalla || !streamCamara) return alert("¡Enciende la cámara y captura la pantalla primero!");
+
+            // Llamada A: Enviar solo la pantalla (Identificada con metadata)
+            peer.call(idPareja, streamPantalla, { metadata: { tipo: 'serie' } });
+
+            // Llamada B: Enviar tu cámara y recibir la de ella en respuesta
+            const llamadaCamara = peer.call(idPareja, streamCamara, { metadata: { tipo: 'webcams' } });
+            llamadaCamara.on('stream', streamRemoto => {
+                document.getElementById('camara-pareja').srcObject = streamRemoto;
+            });
+            
+            alert("¡Conexión enviada!");
         };
     </script>
 </body>
