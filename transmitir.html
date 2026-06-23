@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Transmisor VIP - Auto Connect</title>
+    <title>Transmisor VIP - Dual Call</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { background-color: #1a1a1a; color: white; font-family: Arial; padding: 20px; }
@@ -28,12 +28,10 @@
     </div>
 
     <script>
-        // IDs FIJOS: El secreto para no copiar y pegar códigos
         const MI_ID_SERVIDOR = 'cine-santiago-host';
         const ID_CELULAR_PAREJA = 'cine-pareja-cliente';
 
-        // Forzamos a PeerJS a usar tu ID fijo
-        const peer = new Peer(MI_ID_SERVIDOR); 
+        const peer = new Peer(MI_ID_SERVIDOR, { config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } }); 
         let streamPantalla, streamCamara;
 
         peer.on('open', id => {
@@ -48,7 +46,7 @@
 
         document.getElementById('btn-pantalla').onclick = async () => {
             streamPantalla = await navigator.mediaDevices.getDisplayMedia({ 
-                video: { width: { ideal: 1280, max: 1280 }, height: { ideal: 720, max: 720 }, frameRate: { ideal: 24, max: 24 } }, 
+                video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24 } }, 
                 audio: true 
             });
         };
@@ -56,20 +54,16 @@
         document.getElementById('btn-conectar').onclick = () => {
             if(!streamPantalla || !streamCamara) return alert("Completa el paso 1 y 2 primero.");
 
-            const paqueteUnico = new MediaStream();
-            streamPantalla.getVideoTracks().forEach(t => paqueteUnico.addTrack(t));
-            streamPantalla.getAudioTracks().forEach(t => paqueteUnico.addTrack(t));
-            streamCamara.getVideoTracks().forEach(t => paqueteUnico.addTrack(t));
-            streamCamara.getAudioTracks().forEach(t => paqueteUnico.addTrack(t));
-
-            // Llamamos directamente al ID estático de ella
-            const llamada = peer.call(ID_CELULAR_PAREJA, paqueteUnico);
-            
-            llamada.on('stream', streamCelular => {
-                document.getElementById('camara-pareja').srcObject = streamCelular;
+            // LLAMADA A: Enviamos la Serie (Y esperamos la cámara de ella de vuelta)
+            const llamadaSerie = peer.call(ID_CELULAR_PAREJA, streamPantalla, { metadata: { canal: 'serie' } });
+            llamadaSerie.on('stream', streamDeElla => {
+                document.getElementById('camara-pareja').srcObject = streamDeElla;
             });
 
-            alert("Conectando... Dile que acepte en su celular.");
+            // LLAMADA B: Enviamos tu cámara (Solo de ida)
+            peer.call(ID_CELULAR_PAREJA, streamCamara, { metadata: { canal: 'camara-santiago' } });
+
+            alert("Conectando... Dile que toque el botón azul en su celular.");
         };
     </script>
 </body>
