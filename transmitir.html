@@ -2,11 +2,11 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Transmisor VIP - Conexión Única</title>
+    <title>Transmisor VIP - Auto Connect</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { background-color: #1a1a1a; color: white; font-family: Arial; padding: 20px; }
-        button { padding: 12px; margin: 5px; color: white; border: none; cursor: pointer; border-radius: 5px; font-weight: bold;}
+        button { padding: 15px; margin: 5px; color: white; border: none; cursor: pointer; border-radius: 5px; font-weight: bold;}
         .contenedor-camaras { position: fixed; bottom: 20px; right: 20px; display: flex; gap: 10px; z-index: 1000; }
         video.cam { width: 150px; height: 110px; border-radius: 8px; object-fit: cover; background: #000; }
         #mi-camara { border: 2px solid #888; }
@@ -14,14 +14,13 @@
     </style>
 </head>
 <body>
-    <h2>Panel de Transmisión VIP (Canal Único)</h2>
-    <p>Tu ID: <strong id="mi-id" style="color: #28a745;">Cargando...</strong></p>
+    <h2>Panel de Transmisión (Servidor)</h2>
+    <p>Estado del Servidor: <strong id="estado-host" style="color: #ffc107;">Iniciando...</strong></p>
     
     <button id="btn-camara" style="background: #007bff;">1. Encender mi Cámara</button>
-    <button id="btn-pantalla" style="background: #e50914;">2. Capturar Pantalla (Serie - TVN)</button>
+    <button id="btn-pantalla" style="background: #e50914;">2. Capturar Pantalla (Serie)</button>
     <br><br>
-    <input type="text" id="id-pareja" placeholder="ID del Celular de tu pareja" style="padding: 10px; width: 250px;">
-    <button id="btn-conectar" style="background: #28a745;">3. INICIAR TRANSMISIÓN INTEGRADA</button>
+    <button id="btn-conectar" style="background: #28a745; width: 320px;">3. CONECTAR CON TU PAREJA</button>
 
     <div class="contenedor-camaras">
         <video id="mi-camara" class="cam" autoplay muted playsinline></video>
@@ -29,10 +28,18 @@
     </div>
 
     <script>
-        const peer = new Peer(); 
+        // IDs FIJOS: El secreto para no copiar y pegar códigos
+        const MI_ID_SERVIDOR = 'cine-santiago-host';
+        const ID_CELULAR_PAREJA = 'cine-pareja-cliente';
+
+        // Forzamos a PeerJS a usar tu ID fijo
+        const peer = new Peer(MI_ID_SERVIDOR); 
         let streamPantalla, streamCamara;
 
-        peer.on('open', id => document.getElementById('mi-id').innerText = id);
+        peer.on('open', id => {
+            document.getElementById('estado-host').innerText = "En Línea y Listo";
+            document.getElementById('estado-host').style.color = "#28a745";
+        });
 
         document.getElementById('btn-camara').onclick = async () => {
             streamCamara = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -41,35 +48,28 @@
 
         document.getElementById('btn-pantalla').onclick = async () => {
             streamPantalla = await navigator.mediaDevices.getDisplayMedia({ 
-                video: { width: 1280, height: 720, frameRate: 30 }, 
+                video: { width: { ideal: 1280, max: 1280 }, height: { ideal: 720, max: 720 }, frameRate: { ideal: 24, max: 24 } }, 
                 audio: true 
             });
         };
 
         document.getElementById('btn-conectar').onclick = () => {
-            const idPareja = document.getElementById('id-pareja').value;
-            if(!streamPantalla || !streamCamara) return alert("¡Por favor completa el paso 1 y 2 primero!");
+            if(!streamPantalla || !streamCamara) return alert("Completa el paso 1 y 2 primero.");
 
-            // --- TRUCO MAESTRO: Combinar tracks en un solo paquete ---
             const paqueteUnico = new MediaStream();
-            
-            // Añadimos los tracks de la pantalla (Video e ID de audio de la serie)
             streamPantalla.getVideoTracks().forEach(t => paqueteUnico.addTrack(t));
             streamPantalla.getAudioTracks().forEach(t => paqueteUnico.addTrack(t));
-            
-            // Añadimos los tracks de tu cámara y tu voz
             streamCamara.getVideoTracks().forEach(t => paqueteUnico.addTrack(t));
             streamCamara.getAudioTracks().forEach(t => paqueteUnico.addTrack(t));
 
-            // Hacemos una SOLA llamada enviando el paquete empaquetado
-            const llamada = peer.call(idPareja, paqueteUnico);
+            // Llamamos directamente al ID estático de ella
+            const llamada = peer.call(ID_CELULAR_PAREJA, paqueteUnico);
             
-            // Escuchar cuando ella responda con la cámara de su celular
             llamada.on('stream', streamCelular => {
                 document.getElementById('camara-pareja').srcObject = streamCelular;
             });
 
-            alert("¡Enviando señal estable de video y audio!");
+            alert("Conectando... Dile que acepte en su celular.");
         };
     </script>
 </body>
