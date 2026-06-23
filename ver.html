@@ -3,108 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sala de Cine - Móvil Pro</title>
+    <title>Cine Móvil - Sistema Robusto</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { background-color: black; color: white; margin: 0; font-family: Arial; overflow: hidden; position: relative;}
         
         #capa-inicio { position: fixed; top:0; left:0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.95); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; text-align: center;}
-        #btn-iniciar { padding: 18px; background: #e50914; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; width: 100%; max-width: 350px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);}
+        
+        button { padding: 18px; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; width: 100%; max-width: 350px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); cursor: pointer;}
+        #btn-iniciar { background: #e50914; }
+        #btn-reproducir { background: #007bff; display: none; margin-top: 15px; animation: latir 1.5s infinite; }
+        
+        @keyframes latir { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         
         #video-pantalla { width: 100vw; height: 100vh; object-fit: contain; background: #000; }
-        
         .contenedor-camaras { position: fixed; bottom: 30px; right: 15px; display: flex; gap: 8px; z-index: 1000; }
-        video.cam { width: 100px; height: 75px; border-radius: 8px; object-fit: cover; background: #111; border: 2px solid #555; box-shadow: 0 4px 8px rgba(0,0,0,0.5);}
+        video.cam { width: 100px; height: 75px; border-radius: 8px; object-fit: cover; background: #111; border: 2px solid #555;}
     </style>
 </head>
 <body>
 
     <div id="capa-inicio">
-        <h2>Cine Móvil Estabilizado</h2>
+        <h2>Cine Móvil</h2>
         <p>Tu ID: <strong id="mi-id" style="color:#e50914; font-size: 24px; display: block; margin: 10px 0;">Cargando...</strong></p>
-        <button id="btn-iniciar">TOCA PARA INICIAR CONEXIÓN</button>
-        <p style="font-size: 12px; color: #888; margin-top: 15px;">Mantén esta pantalla abierta</p>
+        
+        <button id="btn-iniciar">1. ENCENDER SISTEMA</button>
+        <p id="texto-estado" style="color: #888; margin-top: 15px;">Paso 1 de 2</p>
+
+        <button id="btn-reproducir">2. 🎬 SEÑAL LISTA: REPRODUCIR</button>
     </div>
 
-    <video id="video-pantalla" autoplay playsinline></video>
+    <video id="video-pantalla" playsinline></video>
 
     <div class="contenedor-camaras">
         <video id="mi-camara" class="cam" autoplay muted playsinline></video>
-        <video id="camara-pareja" class="cam" autoplay playsinline></video>
+        <video id="camara-pareja" class="cam" playsinline></video>
     </div>
 
     <script>
-        // Redundancia de servidores para evitar cortes de conexión
-        const peer = new Peer({
-            config: { 
-                'iceServers': [
-                    { 'urls': 'stun:stun.l.google.com:19302' },
-                    { 'urls': 'stun:stun1.l.google.com:19302' },
-                    { 'urls': 'stun:stun2.l.google.com:19302' }
-                ] 
-            }
-        }); 
+        const peer = new Peer({ config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } }); 
         
         let miStreamCelular;
-        let wakeLock = null; // Variable para mantener la pantalla viva
+        let paqueteRecibido = null; // Guardará el video de tu PC en memoria hasta que ella presione reproducir
+        
         const vPantalla = document.getElementById('video-pantalla');
         const vMiCamara = document.getElementById('mi-camara');
         const vCamaraPareja = document.getElementById('camara-pareja');
+        const btnIniciar = document.getElementById('btn-iniciar');
+        const btnReproducir = document.getElementById('btn-reproducir');
+        const textoEstado = document.getElementById('texto-estado');
 
         peer.on('open', id => document.getElementById('mi-id').innerText = id);
 
-        document.getElementById('btn-iniciar').onclick = async () => {
+        // --- PASO 1: Enciende cámara local y estabiliza ---
+        btnIniciar.onclick = async () => {
             try {
-                // 1. Pedir WakeLock (Evita que la pantalla se apague y corte el WiFi/WebRTC)
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('Pantalla mantenida activa.');
-                }
+                if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(()=>{});
 
-                // 2. Encender cámara
-                miStreamCelular = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "user", width: { ideal: 640 } }, // Optimizamos resolución de la cámara móvil
-                    audio: true 
-                });
+                miStreamCelular = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
                 vMiCamara.srcObject = miStreamCelular;
-                
-                vPantalla.play().catch(e => {});
-                vCamaraPareja.play().catch(e => {});
 
-                document.getElementById('capa-inicio').style.backgroundColor = "rgba(0,0,0,0.8)";
-                document.getElementById('btn-iniciar').innerText = "CONECTADO - ESPERANDO VIDEO...";
-                document.getElementById('btn-iniciar').style.background = "#28a745";
+                btnIniciar.style.display = 'none';
+                textoEstado.innerText = "Sistema listo. Esperando a que tu pareja envíe la película...";
+                textoEstado.style.color = "#28a745";
             } catch(e) {
-                alert("Error de permisos: " + e.message);
+                alert("Debes permitir la cámara y micrófono.");
             }
         };
 
+        // --- PASO 2: Llega la llamada, pero NO la reproducimos aún ---
         peer.on('call', llamada => {
             llamada.answer(miStreamCelular); 
             
             llamada.on('stream', paqueteRemoto => {
-                document.getElementById('capa-inicio').style.display = 'none';
+                // Guardamos los datos en la variable
+                paqueteRecibido = paqueteRemoto;
 
-                const videos = paqueteRemoto.getVideoTracks();
-                const audios = paqueteRemoto.getAudioTracks();
+                // Actualizamos la interfaz para mostrar el botón de Reproducir
+                textoEstado.style.display = 'none';
+                btnReproducir.style.display = 'block';
 
-                if (videos[0]) {
-                    const streamSerie = new MediaStream([videos[0]]);
-                    audios.forEach(track => streamSerie.addTrack(track));
-                    vPantalla.srcObject = streamSerie;
-                    vPantalla.play().catch(e => console.error("Error serie:", e));
-                }
-
-                if (videos[1]) {
-                    const streamNovio = new MediaStream([videos[1]]);
-                    vCamaraPareja.srcObject = streamNovio;
-                    vCamaraPareja.play().catch(e => console.error("Error camara:", e));
-                }
+                // Si el celular lo permite, hacemos una pequeña vibración para avisarle
+                if (navigator.vibrate) navigator.vibrate(200);
             });
-
-            // Si la llamada se corta, intentar avisar
-            llamada.on('close', () => alert("Se perdió la conexión con la PC. Recarga la página."));
         });
+
+        // --- PASO 3: Tu idea maestra. Ejecutar el video de forma explícita ---
+        btnReproducir.onclick = () => {
+            document.getElementById('capa-inicio').style.display = 'none';
+
+            const videos = paqueteRecibido.getVideoTracks();
+            const audios = paqueteRecibido.getAudioTracks();
+
+            // Extraemos e inyectamos la Serie
+            if (videos[0]) {
+                const streamSerie = new MediaStream([videos[0]]);
+                audios.forEach(track => streamSerie.addTrack(track));
+                vPantalla.srcObject = streamSerie;
+                
+                // .play() forzado por el usuario (nunca falla)
+                vPantalla.play().catch(e => alert("Error al reproducir pantalla: " + e));
+            }
+
+            // Extraemos e inyectamos la cámara del PC
+            if (videos[1]) {
+                const streamNovio = new MediaStream([videos[1]]);
+                vCamaraPareja.srcObject = streamNovio;
+                vCamaraPareja.play().catch(e => console.log(e));
+            }
+        };
     </script>
 </body>
 </html>
