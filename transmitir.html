@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Transmisor VIP - Dual Call</title>
+    <title>Transmisor VIP - Anti Choques</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { background-color: #1a1a1a; color: white; font-family: Arial; padding: 20px; }
@@ -11,16 +11,19 @@
         video.cam { width: 150px; height: 110px; border-radius: 8px; object-fit: cover; background: #000; }
         #mi-camara { border: 2px solid #888; }
         #camara-pareja { border: 2px solid #e50914; }
+        #consola { background: #000; color: #0f0; padding: 10px; font-family: monospace; margin-top: 20px; height: 100px; overflow-y: auto; }
     </style>
 </head>
 <body>
-    <h2>Panel de Transmisión (Servidor)</h2>
+    <h2>Panel de Transmisión (Servidor Seguro)</h2>
     <p>Estado del Servidor: <strong id="estado-host" style="color: #ffc107;">Iniciando...</strong></p>
     
     <button id="btn-camara" style="background: #007bff;">1. Encender mi Cámara</button>
     <button id="btn-pantalla" style="background: #e50914;">2. Capturar Pantalla (Serie)</button>
     <br><br>
     <button id="btn-conectar" style="background: #28a745; width: 320px;">3. CONECTAR CON TU PAREJA</button>
+
+    <div id="consola">Esperando acciones...</div>
 
     <div class="contenedor-camaras">
         <video id="mi-camara" class="cam" autoplay muted playsinline></video>
@@ -30,6 +33,12 @@
     <script>
         const MI_ID_SERVIDOR = 'cine-santiago-host';
         const ID_CELULAR_PAREJA = 'cine-pareja-cliente';
+        const consola = document.getElementById('consola');
+
+        function log(msg) {
+            consola.innerHTML += `<div>> ${msg}</div>`;
+            consola.scrollTop = consola.scrollHeight;
+        }
 
         const peer = new Peer(MI_ID_SERVIDOR, { config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } }); 
         let streamPantalla, streamCamara;
@@ -37,11 +46,13 @@
         peer.on('open', id => {
             document.getElementById('estado-host').innerText = "En Línea y Listo";
             document.getElementById('estado-host').style.color = "#28a745";
+            log("Servidor WebRTC abierto en el puerto ID fijo.");
         });
 
         document.getElementById('btn-camara').onclick = async () => {
             streamCamara = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             document.getElementById('mi-camara').srcObject = streamCamara;
+            log("Cámara local lista.");
         };
 
         document.getElementById('btn-pantalla').onclick = async () => {
@@ -49,21 +60,27 @@
                 video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24 } }, 
                 audio: true 
             });
+            log("Pantalla lista para transmitir.");
         };
 
         document.getElementById('btn-conectar').onclick = () => {
             if(!streamPantalla || !streamCamara) return alert("Completa el paso 1 y 2 primero.");
 
-            // LLAMADA A: Enviamos la Serie (Y esperamos la cámara de ella de vuelta)
+            log("Enviando Llamada 1: La Película...");
+            // LLAMADA 1: Enviamos la Serie primero
             const llamadaSerie = peer.call(ID_CELULAR_PAREJA, streamPantalla, { metadata: { canal: 'serie' } });
+            
             llamadaSerie.on('stream', streamDeElla => {
+                log("¡Recibida la cámara del celular!");
                 document.getElementById('camara-pareja').srcObject = streamDeElla;
             });
 
-            // LLAMADA B: Enviamos tu cámara (Solo de ida)
-            peer.call(ID_CELULAR_PAREJA, streamCamara, { metadata: { canal: 'camara-santiago' } });
-
-            alert("Conectando... Dile que toque el botón azul en su celular.");
+            // LLAMADA 2: Retrasada 2.5 segundos para evitar colapso en el celular
+            setTimeout(() => {
+                log("Enviando Llamada 2: Cámara de Santiago...");
+                peer.call(ID_CELULAR_PAREJA, streamCamara, { metadata: { canal: 'camara-santiago' } });
+                log("Todo enviado. Esperando que ella presione el botón azul.");
+            }, 2500);
         };
     </script>
 </body>
