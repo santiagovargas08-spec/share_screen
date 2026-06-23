@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Mi Sala de Cine - Receptor</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+</head>
+<body style="background-color: black; color: white; margin: 0; text-align: center; font-family: Arial;">
+
+    <div id="panel-conexion" style="padding: 20px;">
+        <h3>Esperando conexión...</h3>
+        <p>Dile a tu pareja que tu ID es: <strong id="mi-id">Cargando...</strong></p>
+    </div>
+
+    <video id="video-recibido" autoplay controls playsinline style="width: 100vw; height: 100vh; object-fit: contain; display: none;"></video>
+
+    <script>
+        const peer = new Peer(); 
+
+        peer.on('open', (id) => {
+            document.getElementById('mi-id').innerText = id;
+        });
+
+        // Contestar automáticamente cuando tú le envíes la pantalla
+        peer.on('call', (call) => {
+            call.answer(); // Responde la llamada (solo recibe, no envía su cámara)
+            
+            call.on('stream', (remoteStream) => {
+                // Oculta el texto y muestra el video a pantalla completa
+                document.getElementById('panel-conexion').style.display = 'none';
+                const video = document.getElementById('video-recibido');
+                video.style.display = 'block';
+                video.srcObject = remoteStream;
+            });
+        });
+    </script>
+</body>
+</html>
