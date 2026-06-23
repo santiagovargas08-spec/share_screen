@@ -2,29 +2,28 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Sala de Cine - Canal Estable</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sala de Cine - Móvil Pro</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { background-color: black; color: white; margin: 0; font-family: Arial; overflow: hidden; position: relative;}
         
-        /* Capa de inicio flotante para no romper los reproductores de video */
-        #capa-inicio { position: fixed; top:0; left:0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;}
-        #btn-iniciar { padding: 15px; background: #e50914; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; width: 90%; max-width: 300px;}
+        #capa-inicio { position: fixed; top:0; left:0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.95); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; text-align: center;}
+        #btn-iniciar { padding: 18px; background: #e50914; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; width: 100%; max-width: 350px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);}
         
-        /* La serie toma todo el fondo de la pantalla */
         #video-pantalla { width: 100vw; height: 100vh; object-fit: contain; background: #000; }
         
-        /* Cámaras flotantes */
-        .contenedor-camaras { position: fixed; bottom: 20px; right: 20px; display: flex; gap: 8px; z-index: 1000; }
-        video.cam { width: 90px; height: 68px; border-radius: 8px; object-fit: cover; background: #111; border: 2px solid white;}
+        .contenedor-camaras { position: fixed; bottom: 30px; right: 15px; display: flex; gap: 8px; z-index: 1000; }
+        video.cam { width: 100px; height: 75px; border-radius: 8px; object-fit: cover; background: #111; border: 2px solid #555; box-shadow: 0 4px 8px rgba(0,0,0,0.5);}
     </style>
 </head>
 <body>
 
     <div id="capa-inicio">
-        <h2>Bienvenida al Cine</h2>
-        <p>ID para tu pareja: <strong id="mi-id" style="color:#e50914; font-size: 20px;">Cargando...</strong></p>
-        <button id="btn-iniciar">ACTIVAR AUDIO Y VIDEO</button>
+        <h2>Cine Móvil Estabilizado</h2>
+        <p>Tu ID: <strong id="mi-id" style="color:#e50914; font-size: 24px; display: block; margin: 10px 0;">Cargando...</strong></p>
+        <button id="btn-iniciar">TOCA PARA INICIAR CONEXIÓN</button>
+        <p style="font-size: 12px; color: #888; margin-top: 15px;">Mantén esta pantalla abierta</p>
     </div>
 
     <video id="video-pantalla" autoplay playsinline></video>
@@ -35,67 +34,76 @@
     </div>
 
     <script>
+        // Redundancia de servidores para evitar cortes de conexión
         const peer = new Peer({
-            config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] }
+            config: { 
+                'iceServers': [
+                    { 'urls': 'stun:stun.l.google.com:19302' },
+                    { 'urls': 'stun:stun1.l.google.com:19302' },
+                    { 'urls': 'stun:stun2.l.google.com:19302' }
+                ] 
+            }
         }); 
         
         let miStreamCelular;
+        let wakeLock = null; // Variable para mantener la pantalla viva
         const vPantalla = document.getElementById('video-pantalla');
         const vMiCamara = document.getElementById('mi-camara');
         const vCamaraPareja = document.getElementById('camara-pareja');
 
         peer.on('open', id => document.getElementById('mi-id').innerText = id);
 
-        // Desbloqueo inicial del teléfono
         document.getElementById('btn-iniciar').onclick = async () => {
             try {
-                miStreamCelular = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                // 1. Pedir WakeLock (Evita que la pantalla se apague y corte el WiFi/WebRTC)
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Pantalla mantenida activa.');
+                }
+
+                // 2. Encender cámara
+                miStreamCelular = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "user", width: { ideal: 640 } }, // Optimizamos resolución de la cámara móvil
+                    audio: true 
+                });
                 vMiCamara.srcObject = miStreamCelular;
                 
-                // Primamos los reproductores para saltarnos el bloqueo de reproducción móvil
                 vPantalla.play().catch(e => {});
                 vCamaraPareja.play().catch(e => {});
 
-                document.getElementById('capa-inicio').style.backgroundColor = "rgba(0,128,0,0.4)";
-                document.getElementById('btn-iniciar').innerText = "¡Listo! Esperando señal...";
+                document.getElementById('capa-inicio').style.backgroundColor = "rgba(0,0,0,0.8)";
+                document.getElementById('btn-iniciar').innerText = "CONECTADO - ESPERANDO VIDEO...";
                 document.getElementById('btn-iniciar').style.background = "#28a745";
             } catch(e) {
-                alert("Por favor acepta los permisos de cámara y audio.");
+                alert("Error de permisos: " + e.message);
             }
         };
 
-        // Recibir la llamada única
         peer.on('call', llamada => {
-            // Respondemos enviando la cámara del celular hacia la PC
             llamada.answer(miStreamCelular); 
             
             llamada.on('stream', paqueteRemoto => {
-                // Quitamos el menú de bienvenida por completo
                 document.getElementById('capa-inicio').style.display = 'none';
 
                 const videos = paqueteRemoto.getVideoTracks();
                 const audios = paqueteRemoto.getAudioTracks();
 
-                // Separamos el paquete de datos en sus respectivos reproductores
-                
-                // Track de Video 0 = La Pantalla de la PC (Serie)
                 if (videos[0]) {
-                    const streamSerie = new MediaStream();
-                    streamSerie.addTrack(videos[0]);
-                    // Le inyectamos todos los audios que vengan del PC (voz + película)
+                    const streamSerie = new MediaStream([videos[0]]);
                     audios.forEach(track => streamSerie.addTrack(track));
-                    
                     vPantalla.srcObject = streamSerie;
-                    vPantalla.play().catch(err => console.log(err));
+                    vPantalla.play().catch(e => console.error("Error serie:", e));
                 }
 
-                // Track de Video 1 = La cámara web de tu novio
                 if (videos[1]) {
                     const streamNovio = new MediaStream([videos[1]]);
                     vCamaraPareja.srcObject = streamNovio;
-                    vCamaraPareja.play().catch(err => console.log(err));
+                    vCamaraPareja.play().catch(e => console.error("Error camara:", e));
                 }
             });
+
+            // Si la llamada se corta, intentar avisar
+            llamada.on('close', () => alert("Se perdió la conexión con la PC. Recarga la página."));
         });
     </script>
 </body>
