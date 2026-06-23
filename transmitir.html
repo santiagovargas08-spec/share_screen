@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Mi Sala de Cine - Transmisor</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+</head>
+<body style="background-color: #1a1a1a; color: white; font-family: Arial;">
+
+    <h2>Panel de Transmisión</h2>
+    <p>Tu ID de conexión es: <strong id="mi-id">Cargando...</strong></p>
+    <p>Pásale este ID a tu pareja.</p>
+    
+    <button id="iniciar-stream" style="padding: 10px; background: #e50914; color: white; border: none; cursor: pointer;">
+        1. Capturar Pantalla de TVN
+    </button>
+    <br><br>
+    
+    <input type="text" id="id-pareja" placeholder="Pega el ID de ella aquí">
+    <button id="conectar" style="padding: 10px; background: #28a745; color: white; border: none; cursor: pointer;">
+        2. Enviar Video
+    </button>
+
+    <video id="mi-video" autoplay muted style="width: 50%; margin-top: 20px; border: 2px solid #333;"></video>
+
+    <script>
+        const peer = new Peer(); 
+        let miStream;
+
+        // Mostrar mi ID cuando me conecto a la red de PeerJS
+        peer.on('open', (id) => {
+            document.getElementById('mi-id').innerText = id;
+        });
+
+        // Capturar la pantalla (Ventana de TVN)
+        document.getElementById('iniciar-stream').onclick = async () => {
+            try {
+                // Pide permiso para capturar pantalla CON AUDIO
+                miStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                document.getElementById('mi-video').srcObject = miStream;
+            } catch (err) {
+                console.error("Error al capturar pantalla:", err);
+            }
+        };
+
+        // Llamar a la pareja y enviarle el video
+        document.getElementById('conectar').onclick = () => {
+            const idPareja = document.getElementById('id-pareja').value;
+            if(miStream) {
+                peer.call(idPareja, miStream);
+                alert("Conectando con tu pareja...");
+            } else {
+                alert("Primero debes capturar la pantalla.");
+            }
+        };
+    </script>
+</body>
+</html>
