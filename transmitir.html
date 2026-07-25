@@ -2,47 +2,69 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Transmisor PC a TV</title>
+    <title>Receptor Smart TV</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
-        body { background-color: #1a1a1a; color: white; font-family: Arial; padding: 50px; text-align: center; }
-        h2 { font-size: 32px; margin-bottom: 30px; }
-        button { padding: 25px; font-size: 24px; background: #e50914; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; width: 100%; max-width: 400px; box-shadow: 0 4px 10px rgba(229, 9, 20, 0.5); }
-        button:hover { background: #ff0f1a; }
-        #estado { margin-top: 30px; font-size: 18px; color: #888; }
+        body { background: black; color: white; margin: 0; font-family: Arial; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; text-align: center; }
+        
+        #video-tv { width: 100vw; height: 100vh; object-fit: contain; display: none; background: #000; }
+        
+        #btn-iniciar { padding: 40px; font-size: 32px; background: #007bff; color: white; border: none; border-radius: 15px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        /* El focus es importante para que el control remoto del TV resalte el botón */
+        #btn-iniciar:focus, #btn-iniciar:hover { outline: 6px solid white; background: #0056b3; }
+        
+        #mensaje { margin-top: 30px; font-size: 24px; color: #aaa; }
     </style>
 </head>
 <body>
-    <h2>Transmisor al Smart TV</h2>
-    
-    <button id="btn-transmitir">Compartir Pantalla a la TV</button>
-    
-    <p id="estado">Estado: Iniciando servidor...</p>
+
+    <button id="btn-iniciar" autofocus>Esperando señal...</button>
+    <p id="mensaje">Ingresando al sistema...</p>
+
+    <video id="video-tv" playsinline></video>
 
     <script>
-        const ID_TV = 'cine-smart-tv'; // El ID fijo que tendrá el televisor
-        const peer = new Peer('cine-pc-transmisor', { config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } });
+        // Este es el ID estático al que llamará tu PC
+        const peer = new Peer('cine-smart-tv', { config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } });
         
-        const estado = document.getElementById('estado');
+        const video = document.getElementById('video-tv');
+        const btn = document.getElementById('btn-iniciar');
+        const msj = document.getElementById('mensaje');
 
-        peer.on('open', () => {
-            estado.innerText = "Estado: Sistema listo. Presiona el botón rojo para compartir.";
-            estado.style.color = "#28a745";
+        let streamRecibido = null;
+
+        peer.on('open', () => { 
+            msj.innerText = "Televisor conectado. Esperando a que el PC envíe la película..."; 
         });
 
-        document.getElementById('btn-transmitir').onclick = async () => {
-            try {
-                // Pedimos capturar la pantalla
-                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        // Cuando tu PC envía la señal
+        peer.on('call', llamada => {
+            llamada.answer(); // Responde automáticamente sin enviar cámara (porque el TV no tiene)
+            
+            llamada.on('stream', stream => {
+                streamRecibido = stream;
                 
-                // Llamamos directamente al ID de la TV
-                peer.call(ID_TV, stream);
+                // Cambiamos el botón para indicarle que ya puede darle OK
+                btn.innerText = "▶ VER PELÍCULA AHORA";
+                btn.style.background = "#e50914";
+                msj.innerText = "¡Película recibida!";
+            });
+        });
+
+        // La persona usa el control remoto y le da OK al botón
+        btn.onclick = () => {
+            if (streamRecibido) {
+                // Mostramos el video y ocultamos la interfaz
+                video.srcObject = streamRecibido;
+                video.style.display = 'block';
+                btn.style.display = 'none';
+                msj.style.display = 'none';
                 
-                estado.innerText = "Estado: ¡Transmitiendo a la TV!";
-                estado.style.color = "#007bff";
-            } catch (e) {
-                estado.innerText = "Transmisión cancelada o error: " + e.message;
-                estado.style.color = "red";
+                video.play().catch(e => msj.innerText = "Error: " + e);
+            } else {
+                // Truco para engañar al navegador del TV por si le dan OK antes de tiempo
+                video.play().catch(e => {});
+                msj.innerText = "Aún no ha llegado la señal del PC, espera...";
             }
         };
     </script>
