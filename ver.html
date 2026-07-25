@@ -2,124 +2,63 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cine Móvil - Dual Channel</title>
+    <title>Receptor Smart TV</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
-        body { background-color: black; color: white; margin: 0; font-family: Arial; overflow: hidden; position: relative;}
-        #capa-inicio { position: fixed; top:0; left:0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.95); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; text-align: center;}
+        body { background: black; color: white; margin: 0; font-family: Arial; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; text-align: center; }
         
-        button { padding: 18px; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; width: 100%; max-width: 350px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); cursor: pointer;}
-        #btn-iniciar { background: #e50914; }
-        #btn-reproducir { background: #007bff; display: none; margin-top: 15px; animation: latir 1.5s infinite; }
+        #video-tv { width: 100vw; height: 100vh; object-fit: contain; display: none; background: #000; }
         
-        @keyframes latir { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        #btn-iniciar { padding: 40px; font-size: 32px; background: #007bff; color: white; border: none; border-radius: 15px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        #btn-iniciar:focus, #btn-iniciar:hover { outline: 6px solid white; background: #0056b3; }
         
-        #video-pantalla { width: 100vw; height: 100vh; object-fit: contain; background: #000; }
-        .contenedor-camaras { position: fixed; bottom: 30px; right: 15px; display: flex; gap: 8px; z-index: 1000; }
-        video.cam { width: 100px; height: 75px; border-radius: 8px; object-fit: cover; background: #111; border: 2px solid #555;}
+        #mensaje { margin-top: 30px; font-size: 24px; color: #aaa; }
     </style>
 </head>
 <body>
 
-    <div id="capa-inicio">
-        <h2>Cine Móvil</h2>
-        
-        <button id="btn-iniciar">1. ENCENDER SISTEMA</button>
-        <p id="texto-estado" style="color: #888; margin-top: 15px;">Paso 1 de 2</p>
+    <button id="btn-iniciar" autofocus>Esperando señal...</button>
+    <p id="mensaje">Ingresando al sistema...</p>
 
-        <button id="btn-reproducir">2. 🎬 REPRODUCIR CINE</button>
-    </div>
-
-    <video id="video-pantalla" playsinline></video>
-
-    <div class="contenedor-camaras">
-        <video id="mi-camara" class="cam" autoplay muted playsinline></video>
-        <video id="camara-pareja" class="cam" playsinline></video>
-    </div>
+    <video id="video-tv" playsinline></video>
 
     <script>
-        const MI_ID_CLIENTE = 'cine-pareja-cliente'; 
-
-        const peer = new Peer(MI_ID_CLIENTE, { config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } }); 
+        const peer = new Peer('cine-smart-tv', { config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } });
         
-        let miStreamCelular;
-        
-        // Variables para guardar lo que nos mandas antes de darle play
-        let streamSerieRecibido = null;
-        let streamCamaraSantiago = null;
-        
-        const vPantalla = document.getElementById('video-pantalla');
-        const vMiCamara = document.getElementById('mi-camara');
-        const vCamaraPareja = document.getElementById('camara-pareja');
-        const btnIniciar = document.getElementById('btn-iniciar');
-        const btnReproducir = document.getElementById('btn-reproducir');
-        const textoEstado = document.getElementById('texto-estado');
+        const video = document.getElementById('video-tv');
+        const btn = document.getElementById('btn-iniciar');
+        const msj = document.getElementById('mensaje');
 
-        peer.on('disconnected', () => peer.reconnect());
+        let streamRecibido = null;
 
-        document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === 'visible') {
-                vPantalla.play().catch(e=>{});
-                vCamaraPareja.play().catch(e=>{});
-            }
+        peer.on('open', () => { 
+            msj.innerText = "Televisor conectado. Esperando a que el PC envíe la película..."; 
         });
 
-        btnIniciar.onclick = async () => {
-            try {
-                if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(()=>{});
-
-                miStreamCelular = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
-                vMiCamara.srcObject = miStreamCelular;
-
-                btnIniciar.style.display = 'none';
-                textoEstado.innerText = "Esperando la señal de Santiago...";
-                textoEstado.style.color = "#28a745";
-            } catch(e) { alert("Permite cámara y micrófono."); }
-        };
-
-        // Recibimos las llamadas separadas
         peer.on('call', llamada => {
-            const canal = llamada.metadata ? llamada.metadata.canal : '';
-
-            if (canal === 'serie') {
-                // A la llamada de la serie, le respondemos enviando la cámara de ella hacia tu PC
-                llamada.answer(miStreamCelular); 
-                llamada.on('stream', stream => {
-                    streamSerieRecibido = stream;
-                    activarBotonAzul();
-                });
-            } 
-            else if (canal === 'camara-santiago') {
-                // A la llamada de tu cámara, solo respondemos para recibirla
-                llamada.answer(); 
-                llamada.on('stream', stream => {
-                    streamCamaraSantiago = stream;
-                    activarBotonAzul();
-                });
-            }
+            // Se contesta la llamada, pero sin enviar NADA de regreso
+            llamada.answer(); 
+            
+            llamada.on('stream', stream => {
+                streamRecibido = stream;
+                
+                btn.innerText = "▶ VER PELÍCULA AHORA";
+                btn.style.background = "#e50914";
+                msj.innerText = "¡Película recibida!";
+            });
         });
 
-        // Función para mostrar el botón azul sin importar qué llamada llega primero
-        function activarBotonAzul() {
-            if (btnReproducir.style.display === 'none' || btnReproducir.style.display === '') {
-                textoEstado.style.display = 'none';
-                btnReproducir.style.display = 'block';
-                if (navigator.vibrate) navigator.vibrate(200);
-            }
-        }
-
-        // El usuario autoriza que ambas cosas se reproduzcan
-        btnReproducir.onclick = () => {
-            document.getElementById('capa-inicio').style.display = 'none';
-
-            if (streamSerieRecibido) {
-                vPantalla.srcObject = streamSerieRecibido;
-                vPantalla.play().catch(e => console.error("Error Pantalla", e));
-            }
-            if (streamCamaraSantiago) {
-                vCamaraPareja.srcObject = streamCamaraSantiago;
-                vCamaraPareja.play().catch(e => console.error("Error Cámara", e));
+        btn.onclick = () => {
+            if (streamRecibido) {
+                video.srcObject = streamRecibido;
+                video.style.display = 'block';
+                btn.style.display = 'none';
+                msj.style.display = 'none';
+                
+                video.play().catch(e => msj.innerText = "Error: " + e);
+            } else {
+                video.play().catch(e => {});
+                msj.innerText = "Aún no ha llegado la señal del PC, espera...";
             }
         };
     </script>
