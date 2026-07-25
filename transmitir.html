@@ -2,49 +2,54 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Transmisor PC a TV</title>
+    <title>Transmisor PC - Cine HD</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { background-color: #1a1a1a; color: white; font-family: Arial; padding: 50px; text-align: center; }
         h2 { font-size: 32px; margin-bottom: 30px; }
-        button { padding: 25px; font-size: 24px; background: #e50914; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; width: 100%; max-width: 400px; box-shadow: 0 4px 10px rgba(229, 9, 20, 0.5); }
-        button:hover { background: #ff0f1a; }
+        button { padding: 20px; font-size: 22px; background: #e50914; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; max-width: 400px; box-shadow: 0 4px 10px rgba(229, 9, 20, 0.5); }
+        button:hover { background: #ff0f1a; transform: scale(1.02); transition: 0.2s; }
         #estado { margin-top: 30px; font-size: 18px; color: #888; }
     </style>
 </head>
 <body>
-    <h2>Transmisor a Smart TV</h2>
+    <h2>Transmisor HD</h2>
     
-    <button id="btn-transmitir">Compartir Pantalla a la TV</button>
-    
+    <button id="btn-transmitir">Compartir Película</button>
     <p id="estado">Estado: Iniciando servidor...</p>
 
     <script>
-        const ID_TV = 'cine-smart-tv'; 
+        const ID_RECEPTOR = 'cine-receptor-hd'; 
         const peer = new Peer('cine-pc-transmisor', { config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } });
         
         const estado = document.getElementById('estado');
 
         peer.on('open', () => {
-            estado.innerText = "Estado: Sistema listo. Presiona el botón rojo para compartir.";
+            estado.innerText = "Estado: Sistema listo. Presiona el botón rojo.";
             estado.style.color = "#28a745";
         });
 
         document.getElementById('btn-transmitir').onclick = async () => {
             try {
-                // Capturamos la pantalla y el sonido interno de la pestaña (NO EL MICRÓFONO)
+                // Configuramos calidad 1080p y apagamos filtros de audio para que la película suene perfecto
                 const stream = await navigator.mediaDevices.getDisplayMedia({ 
-                    video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24 } }, 
-                    audio: true 
+                    video: { 
+                        width: { ideal: 1920 }, 
+                        height: { ideal: 1080 }, 
+                        frameRate: { ideal: 30 } 
+                    }, 
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    }
                 });
                 
-                // Enviamos la señal al televisor
-                peer.call(ID_TV, stream);
-                
-                estado.innerText = "Estado: ¡Transmitiendo a la TV!";
+                peer.call(ID_RECEPTOR, stream);
+                estado.innerText = "Estado: ¡Transmitiendo en Alta Calidad!";
                 estado.style.color = "#007bff";
             } catch (e) {
-                estado.innerText = "Transmisión cancelada o error: " + e.message;
+                estado.innerText = "Transmisión cancelada: " + e.message;
                 estado.style.color = "red";
             }
         };
