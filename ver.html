@@ -5,22 +5,23 @@
     <title>Receptor Smart TV</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
-        body { background: black; color: white; margin: 0; font-family: Arial; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; text-align: center; }
+        body { background: black; color: white; margin: 0; font-family: Arial; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; text-align: center; }
         
-        #video-tv { width: 100vw; height: 100vh; object-fit: contain; display: none; background: #000; }
+        /* Video forzado a ocupar espacio pero con controles */
+        #video-tv { width: 90vw; height: 80vh; background: #111; display: none; }
         
-        #btn-iniciar { padding: 40px; font-size: 32px; background: #007bff; color: white; border: none; border-radius: 15px; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        #btn-iniciar:focus, #btn-iniciar:hover { outline: 6px solid white; background: #0056b3; }
+        #btn-iniciar { padding: 30px; font-size: 28px; background: #007bff; color: white; border: none; border-radius: 15px; cursor: pointer; }
         
-        #mensaje { margin-top: 30px; font-size: 24px; color: #aaa; }
+        #mensaje { margin-top: 20px; font-size: 18px; color: #ffc107; }
     </style>
 </head>
 <body>
 
-    <button id="btn-iniciar" autofocus>Esperando señal...</button>
-    <p id="mensaje">Ingresando al sistema...</p>
+    <button id="btn-iniciar">1. CONECTAR CON EL PC</button>
+    <p id="mensaje">Esperando conexión...</p>
 
-    <video id="video-tv" playsinline></video>
+    <!-- Añadimos 'controls' para que si el autoplay falla, tú puedas darle play manual -->
+    <video id="video-tv" playsinline autoplay muted controls></video>
 
     <script>
         const peer = new Peer('cine-smart-tv', { config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } });
@@ -29,36 +30,37 @@
         const btn = document.getElementById('btn-iniciar');
         const msj = document.getElementById('mensaje');
 
-        let streamRecibido = null;
-
-        peer.on('open', () => { 
-            msj.innerText = "Televisor conectado. Esperando a que el PC envíe la película..."; 
-        });
+        peer.on('open', () => { msj.innerText = "Esperando señal del PC..."; });
 
         peer.on('call', llamada => {
-            // Se contesta la llamada, pero sin enviar NADA de regreso
             llamada.answer(); 
-            
             llamada.on('stream', stream => {
-                streamRecibido = stream;
-                
-                btn.innerText = "▶ VER PELÍCULA AHORA";
+                msj.innerText = "¡Señal recibida! Dale al botón de abajo.";
+                btn.innerText = "2. MOSTRAR PELÍCULA";
                 btn.style.background = "#e50914";
-                msj.innerText = "¡Película recibida!";
+                
+                // Guardamos el stream para usarlo luego
+                window.miStream = stream;
             });
         });
 
+        // Depuración de errores: si el video falla, el TV nos dirá por qué
+        video.onerror = (e) => { msj.innerText = "Error de Video: " + e.target.error.message; };
+
         btn.onclick = () => {
-            if (streamRecibido) {
-                video.srcObject = streamRecibido;
+            if (window.miStream) {
                 video.style.display = 'block';
+                video.srcObject = window.miStream;
                 btn.style.display = 'none';
                 msj.style.display = 'none';
                 
-                video.play().catch(e => msj.innerText = "Error: " + e);
+                // Intento forzado de reproducción
+                video.play().catch(err => {
+                    msj.style.display = 'block';
+                    msj.innerText = "El TV bloqueó el autoplay. Usa el control remoto para presionar PLAY en el reproductor de abajo.";
+                });
             } else {
-                video.play().catch(e => {});
-                msj.innerText = "Aún no ha llegado la señal del PC, espera...";
+                msj.innerText = "Aún no ha llegado la película. Verifica el PC.";
             }
         };
     </script>
