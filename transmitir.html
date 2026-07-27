@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Transmisor a Chromecast</title>
+    <title>Transmisor - Modo Ultra Ligero</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { background-color: #1a1a1a; color: white; font-family: Arial; padding: 50px; text-align: center; }
@@ -12,9 +12,9 @@
     </style>
 </head>
 <body>
-    <h2>Transmisor (Modo Chromecast Ligero)</h2>
+    <h2>Transmisor (Calidad DVD 480p)</h2>
     
-    <button id="btn-transmitir">Compartir Película</button>
+    <button id="btn-transmitir">Compartir Película Ligera</button>
     <p id="estado">Estado: Iniciando servidor...</p>
 
     <script>
@@ -30,12 +30,12 @@
 
         document.getElementById('btn-transmitir').onclick = async () => {
             try {
-                // Forzamos un límite estricto de 720p para no colapsar el Chromecast
+                // Modo ultra-ligero: 480p a 24fps (Formato de cine clásico)
                 const stream = await navigator.mediaDevices.getDisplayMedia({ 
                     video: { 
-                        width: { max: 1280 }, 
-                        height: { max: 720 }, 
-                        frameRate: { max: 30 } 
+                        width: { max: 854 }, 
+                        height: { max: 480 }, 
+                        frameRate: { max: 24 } 
                     }, 
                     audio: {
                         echoCancellation: false,
@@ -45,7 +45,7 @@
                 });
                 
                 peer.call(ID_RECEPTOR, stream);
-                estado.innerText = "Estado: ¡Transmitiendo a 720p optimizado!";
+                estado.innerText = "Estado: ¡Transmitiendo en Modo Ligero!";
                 estado.style.color = "#007bff";
             } catch (e) {
                 estado.innerText = "Transmisión cancelada: " + e.message;
