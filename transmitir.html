@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Transmisor PC - Cine HD</title>
+    <title>Transmisor PC - Cine</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { background-color: #1a1a1a; color: white; font-family: Arial; padding: 50px; text-align: center; }
@@ -13,7 +13,7 @@
     </style>
 </head>
 <body>
-    <h2>Transmisor HD</h2>
+    <h2>Transmisor al Chromecast</h2>
     
     <button id="btn-transmitir">Compartir Película</button>
     <p id="estado">Estado: Iniciando servidor...</p>
@@ -31,13 +31,9 @@
 
         document.getElementById('btn-transmitir').onclick = async () => {
             try {
-                // Configuramos calidad 1080p y apagamos filtros de audio para que la película suene perfecto
+                // Resolución automática, pero audio optimizado para películas
                 const stream = await navigator.mediaDevices.getDisplayMedia({ 
-                    video: { 
-                        width: { ideal: 1920 }, 
-                        height: { ideal: 1080 }, 
-                        frameRate: { ideal: 30 } 
-                    }, 
+                    video: true, 
                     audio: {
                         echoCancellation: false,
                         noiseSuppression: false,
@@ -46,7 +42,7 @@
                 });
                 
                 peer.call(ID_RECEPTOR, stream);
-                estado.innerText = "Estado: ¡Transmitiendo en Alta Calidad!";
+                estado.innerText = "Estado: ¡Transmitiendo película!";
                 estado.style.color = "#007bff";
             } catch (e) {
                 estado.innerText = "Transmisión cancelada: " + e.message;
