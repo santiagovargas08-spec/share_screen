@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Receptor Cine HD</title>
+    <title>Receptor Chromecast</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { background: black; color: white; margin: 0; font-family: Arial; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; text-align: center; }
@@ -13,9 +13,6 @@
         button { padding: 25px; font-size: 24px; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; width: 300px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
         
         #btn-iniciar { background: #007bff; }
-        #btn-fullscreen { background: #333; display: none; padding: 15px; font-size: 18px; position: absolute; bottom: 20px; right: 20px; width: auto; opacity: 0.5; }
-        #btn-fullscreen:hover { opacity: 1; }
-        
         #mensaje { margin-top: 30px; font-size: 20px; color: #aaa; }
     </style>
 </head>
@@ -26,22 +23,21 @@
         <p id="mensaje">Conectando al sistema...</p>
     </div>
 
-    <video id="video-pantalla" playsinline></video>
-    <button id="btn-fullscreen">⛶ Pantalla Completa</button>
+    <!-- Se añadieron los controles nativos para que el Chromecast pueda procesarlo -->
+    <video id="video-pantalla" playsinline autoplay controls></video>
 
     <script>
         const peer = new Peer('cine-receptor-hd', { config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } });
         
         const video = document.getElementById('video-pantalla');
         const btnIniciar = document.getElementById('btn-iniciar');
-        const btnFullscreen = document.getElementById('btn-fullscreen');
         const msj = document.getElementById('mensaje');
         const contenedor = document.getElementById('contenedor-botones');
 
         let streamRecibido = null;
 
         peer.on('open', () => { 
-            msj.innerText = "PC listo. Esperando que inicie la película..."; 
+            msj.innerText = "Chromecast listo. Esperando película..."; 
         });
 
         peer.on('call', llamada => {
@@ -50,7 +46,7 @@
                 streamRecibido = stream;
                 btnIniciar.innerText = "▶ REPRODUCIR CINE";
                 btnIniciar.style.background = "#e50914";
-                msj.innerText = "¡Señal recibida en HD!";
+                msj.innerText = "¡Señal recibida!";
             });
         });
 
@@ -58,26 +54,15 @@
             if (streamRecibido) {
                 video.srcObject = streamRecibido;
                 video.style.display = 'block';
-                btnFullscreen.style.display = 'block';
                 contenedor.style.display = 'none';
                 
-                video.play().catch(e => msj.innerText = "Error: " + e);
+                video.play().catch(e => {
+                    console.log("El autoplay fue bloqueado por el Chromecast, usa los controles en pantalla.");
+                });
             } else {
                 video.play().catch(e => {});
                 msj.innerText = "Aún no ha llegado la señal del PC, espera...";
             }
-        };
-
-        // Función para poner en pantalla completa
-        btnFullscreen.onclick = () => {
-            if (video.requestFullscreen) {
-                video.requestFullscreen();
-            } else if (video.webkitRequestFullscreen) { /* Safari */
-                video.webkitRequestFullscreen();
-            } else if (video.msRequestFullscreen) { /* IE11 */
-                video.msRequestFullscreen();
-            }
-            btnFullscreen.style.display = 'none'; // Se oculta al entrar en pantalla completa
         };
     </script>
 </body>
