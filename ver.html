@@ -7,24 +7,29 @@
     <style>
         body { background: black; color: white; margin: 0; font-family: Arial; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; text-align: center; }
         
-        #video-pantalla { width: 100vw; height: 100vh; object-fit: contain; display: none; background: #000; }
+        /* Hacemos que el video no pueda ser "tocado" por el sistema del Chromecast para evitar el botón gris */
+        #video-pantalla { width: 100vw; height: 100vh; object-fit: contain; display: none; background: #000; pointer-events: none; }
         
-        .botones { display: flex; gap: 15px; flex-direction: column; }
-        button { padding: 25px; font-size: 24px; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; width: 300px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .botones { display: flex; gap: 15px; flex-direction: column; align-items: center; z-index: 10; }
+        button { padding: 30px; font-size: 28px; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; width: 350px; }
         
-        #btn-iniciar { background: #007bff; }
-        #mensaje { margin-top: 30px; font-size: 20px; color: #aaa; }
+        #btn-iniciar { background: #007bff; border: 4px solid transparent; }
+        /* Efecto visual para que ella sepa que el botón está seleccionado con el control remoto */
+        #btn-iniciar:focus { border: 4px solid white; transform: scale(1.05); } 
+        
+        #mensaje { margin-top: 30px; font-size: 22px; color: #aaa; }
     </style>
 </head>
 <body>
 
     <div class="botones" id="contenedor-botones">
-        <button id="btn-iniciar">Esperando señal...</button>
-        <p id="mensaje">Conectando al sistema...</p>
+        <!-- Añadimos 'autofocus' para que el control remoto lo seleccione de inmediato -->
+        <button id="btn-iniciar" autofocus>Esperando señal...</button>
+        <p id="mensaje">Cargando sistema...</p>
     </div>
 
-    <!-- Se añadieron los controles nativos para que el Chromecast pueda procesarlo -->
-    <video id="video-pantalla" playsinline autoplay controls></video>
+    <!-- Sin 'controls' para evitar que Android TV interfiera -->
+    <video id="video-pantalla" playsinline autoplay></video>
 
     <script>
         const peer = new Peer('cine-receptor-hd', { config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } });
@@ -37,31 +42,36 @@
         let streamRecibido = null;
 
         peer.on('open', () => { 
-            msj.innerText = "Chromecast listo. Esperando película..."; 
+            msj.innerText = "Chromecast conectado. Esperando al PC..."; 
         });
 
         peer.on('call', llamada => {
             llamada.answer(); 
             llamada.on('stream', stream => {
                 streamRecibido = stream;
-                btnIniciar.innerText = "▶ REPRODUCIR CINE";
+                btnIniciar.innerText = "▶ VER PELÍCULA";
                 btnIniciar.style.background = "#e50914";
-                msj.innerText = "¡Señal recibida!";
+                msj.innerText = "¡Señal optimizada recibida! Presiona el botón.";
+                btnIniciar.focus(); // Obligamos al control remoto a enfocarse aquí
             });
         });
 
         btnIniciar.onclick = () => {
             if (streamRecibido) {
+                // Truco de arranque: asignamos el video, lo mostramos y forzamos el play de inmediato
                 video.srcObject = streamRecibido;
-                video.style.display = 'block';
                 contenedor.style.display = 'none';
+                video.style.display = 'block';
                 
-                video.play().catch(e => {
-                    console.log("El autoplay fue bloqueado por el Chromecast, usa los controles en pantalla.");
-                });
+                // Un pequeño retraso (100ms) le da tiempo al Chromecast de procesar la etiqueta antes de darle play
+                setTimeout(() => {
+                    video.play().catch(e => {
+                        contenedor.style.display = 'flex';
+                        msj.innerText = "Error forzando video: " + e.message;
+                    });
+                }, 100);
             } else {
-                video.play().catch(e => {});
-                msj.innerText = "Aún no ha llegado la señal del PC, espera...";
+                msj.innerText = "Aún no ha llegado la señal del PC.";
             }
         };
     </script>
